@@ -23,7 +23,7 @@ def run(
 
     for _ in range(generations):
         for _ in range(pop_size):
-            tree = ExpressionTree(data, mut_rate=mutation_rate)
+            tree = ExpressionTree(data, mut_rate=mutation_rate, co_rate=crossover_rate)
             tree.generate()
             y_hat = tree.compute()
             if not isinstance(y_hat, np.ndarray):

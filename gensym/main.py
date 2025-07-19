@@ -12,7 +12,7 @@ def main():
     for _ in range(10):
         print()
         tree_a = ExpressionTree(data, mut_rate=1.0, co_rate=1.0)
-        tree_b = ExpressionTree(data)
+        tree_b = ExpressionTree(data, mut_rate=1.0)
         tree_a.generate()
         tree_b.generate()
 
@@ -28,6 +28,7 @@ def main():
         print(tree_b.to_string())
 
         tree_a.mutate()
+        tree_b.mutate()
 
         y_hat = tree_a.compute()
         if not isinstance(y_hat, np.ndarray):
