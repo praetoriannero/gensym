@@ -196,7 +196,7 @@ class ExpressionTree:
     def to_string(self) -> str:
         return f"f(x) = {self.root.to_string(self.graph)}"
 
-    def _prune_branch(self, node) -> None:
+    def prune_branch(self, node) -> None:
         child_nodes = list(self.graph.successors(node))
         child_nodes.reverse()
         for child in child_nodes:
@@ -205,27 +205,38 @@ class ExpressionTree:
         self.graph.remove_node(node)
 
     def mutate(self) -> None:
-        if random.random() < self.mut_rate:
+        if random.random() <= self.mut_rate:
             node = random.choice(list(self.graph.nodes()))
             if node is self.root:
                 self.generate()
                 return
 
             parent_node = list(self.graph.predecessors(node))[0]
-            self._prune_branch(node)
+            self.prune_branch(node)
 
             new_node = random.choice(self.node_types)(data=self.data)
             self.graph.add_edge(parent_node, new_node)
             self._grow(new_node, 0)  # TODO need to get actual node depth here
 
-    def crossover(self, other_tree: ExpressionTree) -> None:
-        if random.random() < self.co_rate:
-            node = random.choice(list(self.graph.nodes()))
-            subgraph_a = self.graph.subgraph(
-                list(self.graph.predecessors(node)) + [node]
-            ).copy()
+    def get_random_subgraph(self) -> nx.DiGraph:
+        node = random.choice(list(self.graph.nodes()))
+        # TODO issues here when node is root
+        parent = next(self.graph.predecessors(node), None)
+        subgraph = self.graph.subgraph(
+            list(self.graph.predecessors(node)) + [node]
+        ).copy()
+        print("node is root", node is self.root)
+        self.prune_branch(node)
+        print(subgraph.has_node(node))
+        print(subgraph.has_node(parent))
+        return parent, subgraph
 
-            other_node = random.choice(list(other_tree.graph.nodes()))
-            subgraph_b = other_tree.graph.subgraph(
-                list(other_tree.graph.predecessors(node)) + [node]
-            ).copy()
+
+    def crossover(self, other: ExpressionTree) -> None:
+        return
+        if random.random() <= self.co_rate:
+            this_parent, this_subgraph = self.get_random_subgraph()
+            other_parent, other_subgraph = other.get_random_subgraph()
+
+            # self.graph.add_edge(parent_a, )
+            # self.graph.add_edges_from(subgraph_b)

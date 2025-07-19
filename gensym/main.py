@@ -10,13 +10,26 @@ def main():
     data, targets = make_regression(n_features=3, shuffle=False)
     plt.scatter(data[:, 0], targets)
     for _ in range(10):
-        tree = ExpressionTree(data, mut_rate=1.0)
-        tree.generate()
         print()
-        print(tree.to_string())
-        tree.mutate()
-        print(tree.to_string())
-        y_hat = tree.compute()
+        tree_a = ExpressionTree(data, mut_rate=1.0, co_rate=1.0)
+        tree_b = ExpressionTree(data)
+        tree_a.generate()
+        tree_b.generate()
+
+        print("Tree A")
+        print(tree_a.to_string())
+        print("Tree B")
+        print(tree_b.to_string())
+
+        tree_a.crossover(tree_b)
+        print("Tree A: Crossover")
+        print(tree_a.to_string())
+        print("Tree B: Crossover")
+        print(tree_b.to_string())
+
+        tree_a.mutate()
+
+        y_hat = tree_a.compute()
         if not isinstance(y_hat, np.ndarray):
             y_hat = np.array([y_hat] * data.shape[0])
 
