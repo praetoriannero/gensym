@@ -151,14 +151,14 @@ class ExpressionTree:
         data: np.ndarray,
         init_depth: int = 3,
         max_depth: int = 10,
-        mut_rate: float = 0.5,
-        co_rate: float = 0.5,
+        mut_prob: float = 0.5,
+        co_prob: float = 0.5,
     ):
         self.data = data
         self.init_depth = init_depth
         self.max_depth = max_depth
-        self.mut_rate = mut_rate
-        self.co_rate = co_rate
+        self.mut_prob = mut_prob
+        self.co_prob = co_prob
 
         self.root: BinaryOperator | None = None
         self.graph = nx.DiGraph()
@@ -211,8 +211,9 @@ class ExpressionTree:
     def _prune_branch(self, node) -> None:
         self.graph.remove_nodes_from(dfs_tree(self.graph, node))
 
-    def mutate(self) -> None:
-        if random.random() <= self.mut_rate:
+    def mutate(self, mut_prob: float | None = None) -> None:
+        mut_prob = mut_prob if mut_prob is not None else self.mut_prob
+        if random.random() <= mut_prob:
             node = random.choice(list(self.graph.nodes()))
             if node is self.root:
                 self.generate()
@@ -246,7 +247,7 @@ class ExpressionTree:
         self.sorted_graph = nx.topological_sort(nx.reverse(self.graph))
 
     def crossover(self, other: ExpressionTree) -> None:
-        if random.random() <= self.co_rate:
+        if random.random() <= self.co_prob:
             this_parent, this_node, this_subgraph = self.get_random_subgraph()
             other_parent, other_node, other_subgraph = other.get_random_subgraph()
             self.insert_tree(this_parent, this_node, other_node, other_subgraph)

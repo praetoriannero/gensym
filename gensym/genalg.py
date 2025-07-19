@@ -1,7 +1,12 @@
+import multiprocessing as mp
 import numpy as np
 from tqdm import tqdm
 
 from gensym.exptree import ExpressionTree
+
+
+def percentile(arr: np.ndarray, val: float) -> float:
+    return np.mean(arr <= val)
 
 
 def run(
@@ -24,7 +29,7 @@ def run(
         raise ValueError
 
     population = [
-        ExpressionTree(data=data, mut_rate=mutation_rate, co_rate=crossover_rate)
+        ExpressionTree(data=data, mut_prob=mutation_rate, co_prob=crossover_rate)
         for _ in range(pop_size)
     ]
 
@@ -36,7 +41,6 @@ def run(
         scores = []
         for tree_idx in range(pop_size):
             tree = population[tree_idx]
-            tree.mutate()
             y_hat = tree.compute()
             scores.append((score(y_hat, target), tree))
 
@@ -46,13 +50,18 @@ def run(
         parent_group_a = top_scores[::2]
         parent_group_b = top_scores[1::2]
         new_pop = []
+        for tree, score in scores:
+            percent = percentile(scores, score)
+            tree.mutate(mut_prob=(1.0 - percent))
+
         for (_score_a, pa), (_score_b, pb) in zip(parent_group_a, parent_group_b):
             pa.crossover(pb)
             new_pop.append(pa)
+            new_pop.append(pb)
 
         while len(new_pop) < pop_size:
             tree = ExpressionTree(
-                data=data, mut_rate=mutation_rate, co_rate=crossover_rate
+                data=data, mut_prob=mutation_rate, co_prob=crossover_rate
             )
             tree.generate()
             new_pop.append(tree)
