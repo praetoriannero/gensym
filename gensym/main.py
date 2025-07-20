@@ -8,6 +8,7 @@ from gensym.genalg import run
 
 def main():
     import random
+
     # seed = 42
     # np.random.seed(seed)
     # random.seed(seed)

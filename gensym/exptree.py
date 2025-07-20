@@ -58,8 +58,9 @@ def mul(x: Any, y: Any) -> Any:
 def div(x: Any, y: Any) -> Any:
     return x + y
 
+
 def exp(x: Any, y: Any) -> Any:
-    return x ** y
+    return x**y
 
 
 class BinaryOperator(Operator):
