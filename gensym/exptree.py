@@ -7,6 +7,9 @@ import random
 from typing import Any
 
 
+np.seterr(all="ignore")
+
+
 class Node(ABC):
     def __init__(self, mut_prob: float = 0.2, **kwargs):
         self.mut_prob = mut_prob
@@ -40,6 +43,25 @@ class Operator(Node):
         return self._op
 
 
+def add(x: Any, y: Any) -> Any:
+    return x + y
+
+
+def sub(x: Any, y: Any) -> Any:
+    return x + y
+
+
+def mul(x: Any, y: Any) -> Any:
+    return x + y
+
+
+def div(x: Any, y: Any) -> Any:
+    return x + y
+
+def exp(x: Any, y: Any) -> Any:
+    return x ** y
+
+
 class BinaryOperator(Operator):
     """
     BinaryOperator can represent one of the following:
@@ -47,10 +69,11 @@ class BinaryOperator(Operator):
     """
 
     dispatch = {
-        "+": lambda x, y: x + y,
-        "-": lambda x, y: x - y,
-        "*": lambda x, y: x * y,
-        "/": lambda x, y: x / y,
+        "+": add,
+        "-": sub,
+        "*": mul,
+        "/": div,
+        # "**": lambda x, y: x ** y,
     }
     child_count = 2
 
@@ -72,17 +95,23 @@ class BinaryOperator(Operator):
         return ret_str
 
 
+def inv(x: Any) -> Any:
+    return 1 / x
+
+
 class UnaryOperator(Operator):
     """
     UnaryOperator can represent one of the following:
-    sin, cos, tan, inv
+    sin, cos, tan, inv, sqrt, abs
     """
 
     dispatch = {
-        "sin": lambda x: np.sin(x),
-        "cos": lambda x: np.cos(x),
-        "tan": lambda x: np.tan(x),
-        "inv": lambda x: 1 / x,
+        "sin": np.sin,
+        "cos": np.cos,
+        "tan": np.tan,
+        "inv": inv,
+        # "sqrt": np.sqrt,
+        "abs": np.abs,
     }
     child_count = 1
 
@@ -186,24 +215,23 @@ class ExpressionTree:
         self.root = BinaryOperator()
         self.graph.add_node(self.root)
         self._grow(self.root, 0)
-        self.sorted_graph = nx.topological_sort(nx.reverse(self.graph))
+        self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
 
     def compute(self) -> float:
-        args = []
-        self.sorted_graph = nx.topological_sort(nx.reverse(self.graph))
+        cache = {}
+        reverse_graph = nx.reverse(self.graph)
+        self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
         for node in self.sorted_graph:
-            if not node.child_count:
-                args.append(node.forward())
-            elif node.child_count == len(args):
-                ret = node.forward(*args)
-                args.clear()
-                args.append(ret)
+            if isinstance(node, (Value, Variable)):
+                cache[node] = node.forward()
+            elif isinstance(node, UnaryOperator):
+                parent = next(reverse_graph.predecessors(node))
+                cache[node] = node.forward(cache[parent])
+            elif isinstance(node, BinaryOperator):
+                parents = tuple(reverse_graph.predecessors(node))
+                cache[node] = node.forward(cache[parents[0]], cache[parents[1]])
 
-        y_hat = args[0]
-        if not isinstance(y_hat, np.ndarray):
-            y_hat = np.array([y_hat] * self.data.shape[0])
-
-        return y_hat
+        return cache[self.root]
 
     def to_string(self) -> str:
         return f"f(x) = {self.root.to_string(self.graph, is_root=True)}"
@@ -226,7 +254,7 @@ class ExpressionTree:
             self.graph.add_edge(parent_node, new_node)
             self._grow(new_node, 0)  # TODO need to get actual node depth here
 
-            self.sorted_graph = nx.topological_sort(nx.reverse(self.graph))
+            self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
 
     def get_random_subgraph(self) -> nx.DiGraph:
         node = random.choice(list(self.graph.nodes()))
@@ -244,7 +272,7 @@ class ExpressionTree:
             self.root = new_node
             self.graph = new_tree
 
-        self.sorted_graph = nx.topological_sort(nx.reverse(self.graph))
+        self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
 
     def crossover(self, other: ExpressionTree) -> None:
         if random.random() <= self.co_prob:

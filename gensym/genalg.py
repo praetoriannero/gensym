@@ -1,6 +1,7 @@
 import multiprocessing as mp
 import numpy as np
 from tqdm import tqdm
+from typing import Any
 
 from gensym.exptree import ExpressionTree
 
@@ -9,10 +10,32 @@ def percentile(arr: np.ndarray, val: float) -> float:
     return np.mean(arr <= val)
 
 
+def twin_sort(arr1: list, arr2: list) -> list:
+    combined = zip(arr1, arr2)
+    sorted_combined = sorted(combined, key=lambda x: x[0])
+    return zip(*sorted_combined)
+
+
+def mse(x: np.ndarray, y: np.ndarray) -> float:
+    return np.mean(np.square(x - y))
+
+
+def job(tree: ExpressionTree) -> float:
+    return tree.compute()
+
+
+class FitnessScore:
+    def __init__(self, target: Any):
+        self.target = target
+
+    def get_score(self, tree: ExpressionTree) -> float:
+        y_hat = tree.compute()
+        return mse(y_hat, self.target)
+
+
 def run(
     data: np.ndarray,
     target: np.ndarray,
-    score_func: str = "mse",
     mutation_rate: float = 0.5,
     crossover_rate: float = 0.5,
     pop_size: int = 100,
@@ -23,11 +46,6 @@ def run(
     """
     Executes the genetic algorithm simulation.
     """
-    if score_func == "mse":
-        score = lambda x, y: np.sum(((x - y) ** 2)) / y.shape[0]
-    else:
-        raise ValueError
-
     population = [
         ExpressionTree(data=data, mut_prob=mutation_rate, co_prob=crossover_rate)
         for _ in range(pop_size)
@@ -36,28 +54,45 @@ def run(
     for tree in population:
         tree.generate()
 
+    # pool = mp.Pool(processes=mp.cpu_count() - 1)
+    # pool.map(job, population)
+    # pool.close()
+    # pool.
     losses = []
-    for _ in tqdm(range(generations)):
-        scores = []
-        for tree_idx in range(pop_size):
-            tree = population[tree_idx]
-            y_hat = tree.compute()
-            scores.append((score(y_hat, target), tree))
+    top_tree = None
+    best_score = None
+    fitness_score = FitnessScore(target)
+    for _ in tqdm(range(generations), disable=True):
+        scores = None
+        with mp.Pool(processes=mp.cpu_count() - 1) as pool:
+            scores = pool.map(fitness_score.get_score, population)
 
-        scores.sort(key=lambda x: x[0])
-        losses.append(scores[0][0])
-        top_scores = scores[:keep_top]
-        parent_group_a = top_scores[::2]
-        parent_group_b = top_scores[1::2]
+        scores, population = twin_sort(scores, population)
+        losses.append(scores[0])
+
+        if top_tree is None:
+            top_tree = population[0]
+            best_score = scores[0]
+        else:
+            if scores[0] < best_score:
+                best_score = scores[0]
+                top_tree = population[0]
+
         new_pop = []
-        for tree, score in scores:
-            percent = percentile(scores, score)
+        for fitness, tree in zip(scores, population):
+            percent = percentile(scores, fitness)
             tree.mutate(mut_prob=(1.0 - percent))
 
-        for (_score_a, pa), (_score_b, pb) in zip(parent_group_a, parent_group_b):
-            pa.crossover(pb)
-            new_pop.append(pa)
-            new_pop.append(pb)
+        new_pop = list(population)[:keep_top]
+        print(new_pop[0].to_string())
+        print(losses[-1])
+        # print(type(new_pop))
+        # parent_group_a = population[::2]
+        # parent_group_b = population[1::2]
+        # for pa, pb in zip(parent_group_a, parent_group_b):
+        #     pa.crossover(pb)
+        #     new_pop.append(pa)
+        #     new_pop.append(pb)
 
         while len(new_pop) < pop_size:
             tree = ExpressionTree(
@@ -68,7 +103,7 @@ def run(
 
         population = new_pop
 
-    return losses
+    return top_tree, losses
 
 
 if __name__ == "__main__":
