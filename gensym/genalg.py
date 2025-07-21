@@ -17,7 +17,7 @@ def twin_sort(arr1: list, arr2: list) -> list:
 
 
 def mse(x: np.ndarray, y: np.ndarray) -> float:
-    return np.mean(np.square(x - y))
+    return np.mean(np.square(x.squeeze() - y.squeeze()))
 
 
 def job(tree: ExpressionTree) -> float:
@@ -54,15 +54,11 @@ def run(
     for tree in population:
         tree.generate()
 
-    # pool = mp.Pool(processes=mp.cpu_count() - 1)
-    # pool.map(job, population)
-    # pool.close()
-    # pool.
     losses = []
     top_tree = None
     best_score = None
     fitness_score = FitnessScore(target)
-    for _ in tqdm(range(generations), disable=True):
+    for _ in tqdm(range(generations), disable=False):
         scores = None
         with mp.Pool(processes=mp.cpu_count() - 1) as pool:
             scores = pool.map(fitness_score.get_score, population)
@@ -78,14 +74,18 @@ def run(
                 best_score = scores[0]
                 top_tree = population[0]
 
+        if best_score == 0.0:
+            break
+
         new_pop = []
         for fitness, tree in zip(scores, population):
             percent = percentile(scores, fitness)
             tree.mutate(mut_prob=(1.0 - percent))
+            # tree.mutate()
 
         new_pop = list(population)[:keep_top]
-        print(new_pop[0].to_string())
-        print(losses[-1])
+        # print(top_tree.to_string())
+        # print(losses[0], losses[-1])
         # print(type(new_pop))
         # parent_group_a = population[::2]
         # parent_group_b = population[1::2]

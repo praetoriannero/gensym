@@ -190,7 +190,7 @@ class ExpressionTree:
         self.mut_prob = mut_prob
         self.co_prob = co_prob
 
-        self.root: BinaryOperator | None = None
+        self.root: UnaryOperator | BinaryOperator | None = None
         self.graph = nx.DiGraph()
         self.node_types = [Value, Variable, UnaryOperator, BinaryOperator]
 
@@ -213,7 +213,7 @@ class ExpressionTree:
 
     def generate(self) -> None:
         self.graph.clear()
-        self.root = BinaryOperator()
+        self.root = random.choice([UnaryOperator(), BinaryOperator()])
         self.graph.add_node(self.root)
         self._grow(self.root, 0)
         self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
@@ -232,7 +232,11 @@ class ExpressionTree:
                 parents = tuple(reverse_graph.predecessors(node))
                 cache[node] = node.forward(cache[parents[0]], cache[parents[1]])
 
-        return cache[self.root]
+        result = cache[self.root]
+        if not isinstance(result, np.ndarray):
+            result = np.array([result] * len(self.data))
+
+        return result.squeeze()
 
     def to_string(self) -> str:
         return f"f(x) = {self.root.to_string(self.graph, is_root=True)}"

@@ -1,37 +1,43 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from sklearn.datasets import make_regression
+import random
 
 from gensym.exptree import ExpressionTree
-from gensym.genalg import run
+from gensym.genalg import run, mse
 
+SEED = 968
+np.random.seed(SEED)
+random.seed(SEED)
 
 def main():
-    import random
+    regression_test = {
+        "sin(x * x)": lambda x: np.sin(x * x),
+        "cos(sin(inv(x)))": lambda x: np.cos(np.sin(1 / x)),
+        # "x * (x + x)": lambda x: x * (x + x),
+        # "-1 * (x * x)": lambda x: -(x**2),
+    }
+    inputs = np.arange(100)
+    _, axs = plt.subplots(len(regression_test), 2)
+    for idx, (exp, func) in enumerate(regression_test.items()):
+        target = func(inputs)
+        tree, losses = run(
+            inputs.reshape(-1, 1),
+            target,
+            crossover_rate=0.5,
+            mutation_rate=0.5,
+            generations=100,
+            keep_top=20,
+            pop_size=100,
+        )
+        y_hat = tree.compute()
+        print("best", tree.to_string())
+        axs[idx][0].plot(inputs, target, label=exp)
+        axs[idx][0].plot(inputs, y_hat, label="Best Fit", c="red")
+        axs[idx][1].plot(losses, label="Loss")
+        axs[idx][0].legend()
+        axs[idx][1].legend()
 
-    # seed = 42
-    # np.random.seed(seed)
-    # random.seed(seed)
-    # data, targets = make_regression(n_features=3, shuffle=False)
-    data = np.arange(100).reshape(-1, 1) / 10
-    targets = np.sin(data)
-    # exit()
-    tree, losses = run(
-        data,
-        targets,
-        crossover_rate=0.5,
-        mutation_rate=0.5,
-        generations=100,
-        keep_top=20,
-        pop_size=100,
-    )
-    # plt.plot(losses)
-    print()
-    print(tree.to_string())
-    # print(losses[-1])
-    plt.plot(data, targets, label="Ground Truth")
-    plt.plot(data, tree.compute(), label="Best Fit")
-    plt.legend()
+    # plt.legend()
     plt.show()
 
 

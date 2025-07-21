@@ -1,3 +1,4 @@
 need to add
-    - mutation
+    - per node mutation
     - join two graphs
+    - hoisting
