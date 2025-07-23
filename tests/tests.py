@@ -1,4 +1,4 @@
-from main import BinaryOperator, UnaryOperator, Value, Variable
+from gensym.exptree import BinaryOperator, UnaryOperator, Value, Variable
 
 
 def test_binary_operator():
@@ -8,6 +8,7 @@ def test_binary_operator():
     assert res == 2
 
     bin_op = BinaryOperator(op="-")
+    print(bin_op)
     res = bin_op.forward(x, y)
     assert res == 0
 
@@ -21,3 +22,7 @@ def test_unary_operator():
     un_op = UnaryOperator("cos")
     res = un_op.forward(x)
     assert res == 1.0
+
+if __name__ == "__main__":
+    test_binary_operator()
+    test_unary_operator()
