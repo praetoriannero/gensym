@@ -23,6 +23,7 @@ def test_unary_operator():
     res = un_op.forward(x)
     assert res == 1.0
 
+
 if __name__ == "__main__":
     test_binary_operator()
     test_unary_operator()

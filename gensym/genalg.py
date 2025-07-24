@@ -6,10 +6,6 @@ from typing import Any
 from gensym.exptree import ExpressionTree
 
 
-def percentile(arr: np.ndarray, val: float) -> float:
-    return np.mean(arr <= val)
-
-
 def twin_sort(arr1: list, arr2: list) -> list:
     combined = zip(arr1, arr2)
     sorted_combined = sorted(combined, key=lambda x: x[0])
@@ -36,8 +32,10 @@ class FitnessScore:
 def run(
     data: np.ndarray,
     target: np.ndarray,
-    mutation_rate: float = 0.5,
-    crossover_rate: float = 0.5,
+    crossover_prob: float = 0.5,
+    branch_mutation_prob: float = 0.5,
+    node_mutation_prob: float = 0.5,
+    hoist_mutation_prob: float = 0.5,
     pop_size: int = 100,
     generations: int = 100,
     return_top: int = 0,
@@ -47,7 +45,13 @@ def run(
     Executes the genetic algorithm simulation.
     """
     population = [
-        ExpressionTree(data=data, mut_prob=mutation_rate, co_prob=crossover_rate)
+        ExpressionTree(
+            data=data,
+            branch_mutation_prob=branch_mutation_prob,
+            crossover_prob=crossover_prob,
+            node_mutation_prob=node_mutation_prob,
+            hoist_mutation_prob=hoist_mutation_prob,
+        )
         for _ in range(pop_size)
     ]
 
@@ -63,7 +67,14 @@ def run(
         with mp.Pool(processes=mp.cpu_count() - 1) as pool:
             scores = pool.map(fitness_score.get_score, population)
 
+        scores = [score if not np.isnan(score) else float("inf") for score in scores]
         scores, population = twin_sort(scores, population)
+        scores = np.array(scores)
+
+        if losses:
+            if min(scores) > losses[-1]:
+                assert False, "loss must never increase"
+
         losses.append(scores[0])
 
         if top_tree is None:
@@ -77,16 +88,13 @@ def run(
         if best_score == 0.0:
             break
 
-        new_pop = []
-        for fitness, tree in zip(scores, population):
-            percent = percentile(scores, fitness)
-            tree.mutate(mut_prob=(1.0 - percent))
-            # tree.mutate()
+        new_pop = [top_tree]
 
-        new_pop = list(population)[:keep_top]
-        # print(top_tree.to_string())
-        # print(losses[0], losses[-1])
-        # print(type(new_pop))
+        for tree in population[1:]:
+            tree.branch_mutate()
+            tree.node_mutate()
+            tree.hoist_mutate()
+
         # parent_group_a = population[::2]
         # parent_group_b = population[1::2]
         # for pa, pb in zip(parent_group_a, parent_group_b):
@@ -96,7 +104,11 @@ def run(
 
         while len(new_pop) < pop_size:
             tree = ExpressionTree(
-                data=data, mut_prob=mutation_rate, co_prob=crossover_rate
+                data=data,
+                branch_mutation_prob=branch_mutation_prob,
+                crossover_prob=crossover_prob,
+                node_mutation_prob=node_mutation_prob,
+                hoist_mutation_prob=hoist_mutation_prob,
             )
             tree.generate()
             new_pop.append(tree)

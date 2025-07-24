@@ -11,8 +11,8 @@ np.seterr(all="ignore")
 
 
 class Node(ABC):
-    def __init__(self, mut_prob: float = 0.2, **kwargs):
-        self.mut_prob = mut_prob
+    def __init__(self, **kwargs):
+        pass
 
     def forward(self) -> Any:
         raise NotImplementedError
@@ -60,7 +60,7 @@ def div(x: Any, y: Any) -> Any:
 
 
 def exp(x: Any, y: Any) -> Any:
-    return x ** y
+    return x**y
 
 
 class BinaryOperator(Operator):
@@ -181,14 +181,18 @@ class ExpressionTree:
         data: np.ndarray,
         init_depth: int = 3,
         max_depth: int = 10,
-        mut_prob: float = 0.5,
-        co_prob: float = 0.5,
+        branch_mutation_prob: float = 0.5,
+        crossover_prob: float = 0.5,
+        node_mutation_prob: float = 0.5,
+        hoist_mutation_prob: float = 0.5,
     ):
         self.data = data
         self.init_depth = init_depth
         self.max_depth = max_depth
-        self.mut_prob = mut_prob
-        self.co_prob = co_prob
+        self.branch_mutation_prob = branch_mutation_prob
+        self.crossover_prob = crossover_prob
+        self.node_mutation_prob = node_mutation_prob
+        self.hoist_mutation_prob = hoist_mutation_prob
 
         self.root: UnaryOperator | BinaryOperator | None = None
         self.graph = nx.DiGraph()
@@ -244,9 +248,8 @@ class ExpressionTree:
     def _prune_branch(self, node) -> None:
         self.graph.remove_nodes_from(dfs_tree(self.graph, node))
 
-    def mutate(self, mut_prob: float | None = None) -> None:
-        mut_prob = mut_prob if mut_prob is not None else self.mut_prob
-        if random.random() <= mut_prob:
+    def branch_mutate(self) -> None:
+        if random.random() <= self.branch_mutation_prob:
             node = random.choice(list(self.graph.nodes()))
             if node is self.root:
                 self.generate()
@@ -259,6 +262,23 @@ class ExpressionTree:
             self.graph.add_edge(parent_node, new_node)
             self._grow(new_node, 0)  # TODO need to get actual node depth here
 
+            self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
+
+    def node_mutate(self) -> None:
+        if random.random() <= self.node_mutation_prob:
+            node = random.choice(list(self.graph.nodes()))
+            new_node = type(node)(data=self.data)
+            self.graph.add_node(new_node)
+            for neighbor in self.graph.neighbors(node):
+                self.graph.add_edge(new_node, neighbor)
+
+            self.graph.remove_node(node)
+            self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
+
+    def hoist_mutate(self) -> None:
+        if random.random() <= self.node_mutation_prob:
+            node = random.choice(list(self.graph.nodes()))
+            self.graph = dfs_tree(self.graph, node)
             self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
 
     def get_random_subgraph(self) -> nx.DiGraph:
@@ -280,7 +300,7 @@ class ExpressionTree:
         self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
 
     def crossover(self, other: ExpressionTree) -> None:
-        if random.random() <= self.co_prob:
+        if random.random() <= self.crossover_prob:
             this_parent, this_node, this_subgraph = self.get_random_subgraph()
             other_parent, other_node, other_subgraph = other.get_random_subgraph()
             self.insert_tree(this_parent, this_node, other_node, other_subgraph)
