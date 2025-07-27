@@ -300,7 +300,9 @@ class ExpressionTree:
     @sort_post
     def tree_simplify(self) -> None:
         if random.random() <= self.tree_simplify_prob and len(self.graph) > 1:
-            unary_ops = [node for node in self.graph.nodes() if isinstance(node, UnaryOperator)]
+            unary_ops = [
+                node for node in self.graph.nodes() if isinstance(node, UnaryOperator)
+            ]
             if not unary_ops:
                 return
 
@@ -316,7 +318,6 @@ class ExpressionTree:
                 parent = next(self.graph.predecessors(node))
                 self.graph.remove_nodes_from([node, child])
                 self.graph.add_edge(parent, new_const_node)
-
 
     def get_random_subgraph(self) -> nx.DiGraph:
         node = random.choice(list(self.graph.nodes()))
