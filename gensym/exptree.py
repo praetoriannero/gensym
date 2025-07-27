@@ -120,7 +120,7 @@ class UnaryOperator(Operator):
         return self.op(x)
 
     def to_string(self, graph: nx.DiGraph, *args, **kwargs) -> str:
-        child = next(graph.successors(self))
+        child = list(graph.successors(self))[0]
         return f"{self._op}({child.to_string(graph)})"
 
 
@@ -148,9 +148,9 @@ class Variable(Leaf):
         return f"x_{self.col}"
 
 
-class Value(Leaf):
+class Constant(Leaf):
     """
-    Value represents some floating point number that can mutate.
+    Constant represents some floating point number that can mutate.
     """
 
     child_count = 0
@@ -185,6 +185,7 @@ class ExpressionTree:
         crossover_prob: float = 0.5,
         node_mutation_prob: float = 0.5,
         hoist_mutation_prob: float = 0.5,
+        tree_simplify_prob: float = 0.5,
     ):
         self.data = data
         self.init_depth = init_depth
@@ -193,17 +194,18 @@ class ExpressionTree:
         self.crossover_prob = crossover_prob
         self.node_mutation_prob = node_mutation_prob
         self.hoist_mutation_prob = hoist_mutation_prob
+        self.tree_simplify_prob = tree_simplify_prob
 
         self.root: UnaryOperator | BinaryOperator | None = None
         self.graph = nx.DiGraph()
-        self.node_types = [Value, Variable, UnaryOperator, BinaryOperator]
+        self.node_types = [Constant, Variable, UnaryOperator, BinaryOperator]
 
     def _grow(self, node: Node, depth: int) -> None:
         if not isinstance(node, Operator):
             return
 
         if depth == self.max_depth:
-            node_types = [Value, Variable]
+            node_types = [Constant, Variable]
         else:
             node_types = self.node_types
 
@@ -220,14 +222,14 @@ class ExpressionTree:
         self.root = random.choice([UnaryOperator(), BinaryOperator()])
         self.graph.add_node(self.root)
         self._grow(self.root, 0)
-        self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
+        self.sorted_reverse = list(nx.topological_sort(nx.reverse(self.graph)))
 
     def compute(self) -> float:
         cache = {}
         reverse_graph = nx.reverse(self.graph)
-        self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
-        for node in self.sorted_graph:
-            if isinstance(node, (Value, Variable)):
+        self.sorted_reverse = list(nx.topological_sort(nx.reverse(self.graph)))
+        for node in self.sorted_reverse:
+            if isinstance(node, (Constant, Variable)):
                 cache[node] = node.forward()
             elif isinstance(node, UnaryOperator):
                 parent = next(reverse_graph.predecessors(node))
@@ -248,9 +250,21 @@ class ExpressionTree:
     def _prune_branch(self, node) -> None:
         self.graph.remove_nodes_from(dfs_tree(self.graph, node))
 
+    @staticmethod
+    def sort_post(func) -> function:
+        def wrapped_func(self) -> None:
+            res = func(self)
+            self.sorted_reverse = list(nx.topological_sort(nx.reverse(self.graph)))
+            self.root = self.sorted_reverse[-1]
+            return res
+
+        return wrapped_func
+
+    @sort_post
     def branch_mutate(self) -> None:
         if random.random() <= self.branch_mutation_prob:
             node = random.choice(list(self.graph.nodes()))
+
             if node is self.root:
                 self.generate()
                 return
@@ -262,24 +276,47 @@ class ExpressionTree:
             self.graph.add_edge(parent_node, new_node)
             self._grow(new_node, 0)  # TODO need to get actual node depth here
 
-            self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
-
+    @sort_post
     def node_mutate(self) -> None:
         if random.random() <= self.node_mutation_prob:
             node = random.choice(list(self.graph.nodes()))
             new_node = type(node)(data=self.data)
             self.graph.add_node(new_node)
+
+            for parent in self.graph.predecessors(node):
+                self.graph.add_edge(parent, new_node)
+
             for neighbor in self.graph.neighbors(node):
                 self.graph.add_edge(new_node, neighbor)
 
             self.graph.remove_node(node)
-            self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
 
+    @sort_post
     def hoist_mutate(self) -> None:
-        if random.random() <= self.node_mutation_prob:
+        if random.random() <= self.hoist_mutation_prob:
             node = random.choice(list(self.graph.nodes()))
             self.graph = dfs_tree(self.graph, node)
-            self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
+
+    @sort_post
+    def tree_simplify(self) -> None:
+        if random.random() <= self.tree_simplify_prob and len(self.graph) > 1:
+            unary_ops = [node for node in self.graph.nodes() if isinstance(node, UnaryOperator)]
+            if not unary_ops:
+                return
+
+            node = random.choice(unary_ops)
+            child = next(nx.neighbors(self.graph, node))
+            if not isinstance(child, Constant):
+                return
+
+            if node is self.root:
+                self.root = Constant(init_value=node.forward(child.value))
+            else:
+                new_const_node = Constant(init_value=node.forward(child.value))
+                parent = next(self.graph.predecessors(node))
+                self.graph.remove_nodes_from([node, child])
+                self.graph.add_edge(parent, new_const_node)
+
 
     def get_random_subgraph(self) -> nx.DiGraph:
         node = random.choice(list(self.graph.nodes()))
@@ -297,7 +334,7 @@ class ExpressionTree:
             self.root = new_node
             self.graph = new_tree
 
-        self.sorted_graph = list(nx.topological_sort(nx.reverse(self.graph)))
+        self.sorted_reverse = list(nx.topological_sort(nx.reverse(self.graph)))
 
     def crossover(self, other: ExpressionTree) -> None:
         if random.random() <= self.crossover_prob:

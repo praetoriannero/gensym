@@ -5,7 +5,7 @@ import random
 from gensym.exptree import ExpressionTree
 from gensym.genalg import run, mse
 
-SEED = 964
+SEED = 963
 np.random.seed(SEED)
 random.seed(SEED)
 
@@ -28,7 +28,7 @@ def main():
             branch_mutation_prob=0.5,
             node_mutation_prob=0.5,
             hoist_mutation_prob=0.5,
-            generations=1000,
+            generations=100,
             keep_top=20,
             pop_size=1000,
         )

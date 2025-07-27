@@ -36,6 +36,7 @@ def run(
     branch_mutation_prob: float = 0.5,
     node_mutation_prob: float = 0.5,
     hoist_mutation_prob: float = 0.5,
+    tree_simplify_prob: float = 0.5,
     pop_size: int = 100,
     generations: int = 100,
     return_top: int = 0,
@@ -73,7 +74,7 @@ def run(
 
         if losses:
             if min(scores) > losses[-1]:
-                assert False, "loss must never increase"
+                assert False, "minimum loss must never increase"
 
         losses.append(scores[0])
 
@@ -94,6 +95,7 @@ def run(
             tree.branch_mutate()
             tree.node_mutate()
             tree.hoist_mutate()
+            tree.tree_simplify()
 
         # parent_group_a = population[::2]
         # parent_group_b = population[1::2]
