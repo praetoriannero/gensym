@@ -17,7 +17,7 @@ def main():
         "x * (x + x)": lambda x: x * (x + x),
         "-1 * (x * x)": lambda x: -1 * (x * x),
     }
-    inputs = np.arange(100)
+    inputs = np.arange(100) + 1
     _, axs = plt.subplots(len(regression_test), 2)
     for idx, (exp, func) in enumerate(regression_test.items()):
         target = func(inputs)
@@ -25,10 +25,12 @@ def main():
             inputs.reshape(-1, 1),
             target,
             crossover_prob=0.5,
-            branch_mutation_prob=0.5,
-            node_mutation_prob=0.5,
-            hoist_mutation_prob=0.5,
-            generations=100,
+            branch_mutation_prob=0.2,
+            node_mutation_prob=0.1,
+            hoist_mutation_prob=0.1,
+            tree_simplify_prob=0.2,
+            optimize_const_prob=0.01,
+            generations=10,
             keep_top=20,
             pop_size=1000,
         )

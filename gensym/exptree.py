@@ -4,10 +4,15 @@ import networkx as nx
 from networkx.algorithms.traversal.depth_first_search import dfs_tree
 import numpy as np
 import random
+from scipy.optimize import minimize
 from typing import Any
 
 
 np.seterr(all="ignore")
+
+
+def mse(x: np.ndarray, y: np.ndarray) -> float:
+    return np.mean(np.square(x.squeeze() - y.squeeze()))
 
 
 class Node(ABC):
@@ -179,22 +184,24 @@ class ExpressionTree:
     def __init__(
         self,
         data: np.ndarray,
-        init_depth: int = 3,
-        max_depth: int = 10,
+        min_depth: int = 1,
+        max_depth: int = 4,
         branch_mutation_prob: float = 0.5,
         crossover_prob: float = 0.5,
         node_mutation_prob: float = 0.5,
         hoist_mutation_prob: float = 0.5,
         tree_simplify_prob: float = 0.5,
+        optimize_const_prob: float = 0.5,
     ):
         self.data = data
-        self.init_depth = init_depth
+        self.min_depth = min_depth
         self.max_depth = max_depth
         self.branch_mutation_prob = branch_mutation_prob
         self.crossover_prob = crossover_prob
         self.node_mutation_prob = node_mutation_prob
         self.hoist_mutation_prob = hoist_mutation_prob
         self.tree_simplify_prob = tree_simplify_prob
+        self.optimize_const_prob = optimize_const_prob
 
         self.root: UnaryOperator | BinaryOperator | None = None
         self.graph = nx.DiGraph()
@@ -204,7 +211,9 @@ class ExpressionTree:
         if not isinstance(node, Operator):
             return
 
-        if depth == self.max_depth:
+        if depth <= self.min_depth:
+            node_types = [UnaryOperator, BinaryOperator]
+        elif depth == self.max_depth - 1:
             node_types = [Constant, Variable]
         else:
             node_types = self.node_types
@@ -274,7 +283,10 @@ class ExpressionTree:
 
             new_node = random.choice(self.node_types)(data=self.data)
             self.graph.add_edge(parent_node, new_node)
-            self._grow(new_node, 0)  # TODO need to get actual node depth here
+            self._grow(
+                new_node,
+                nx.shortest_path_length(self.graph, source=self.root, target=new_node),
+            )  # TODO need to get actual node depth here
 
     @sort_post
     def node_mutate(self) -> None:
@@ -297,27 +309,74 @@ class ExpressionTree:
             node = random.choice(list(self.graph.nodes()))
             self.graph = dfs_tree(self.graph, node)
 
+    def _simplify_unary(self, node: UnaryOperator) -> None:
+        child = next(nx.neighbors(self.graph, node))
+        if not isinstance(child, Constant):
+            return
+
+        new_const_node = Constant(init_value=node.forward(child.value))
+        if node is self.root:
+            self.root = new_const_node
+        else:
+            new_const_node = new_const_node
+            parent = next(self.graph.predecessors(node))
+            self.graph.remove_nodes_from([node, child])
+            self.graph.add_edge(parent, new_const_node)
+
+    def _simplify_binary(self, node: BinaryOperator) -> None:
+        children = list(nx.neighbors(self.graph, node))
+        if not all([isinstance(child, Constant) for child in children]):
+            return
+
+        child_a, child_b = children
+        new_const_node = Constant(init_value=node.forward(child_a.value, child_b.value))
+
+        if node is self.root:
+            self.root = new_const_node
+        else:
+            new_const_node = new_const_node
+            parent = next(self.graph.predecessors(node))
+            for child in children:
+                self.graph.remove_nodes_from([node, child])
+                self.graph.add_edge(parent, new_const_node)
+
     @sort_post
     def tree_simplify(self) -> None:
         if random.random() <= self.tree_simplify_prob and len(self.graph) > 1:
-            unary_ops = [
-                node for node in self.graph.nodes() if isinstance(node, UnaryOperator)
+            operators = [
+                node
+                for node in self.graph.nodes()
+                if isinstance(node, (UnaryOperator, BinaryOperator))
             ]
-            if not unary_ops:
+            if operators:
+                op_node = random.choice(operators)
+                if isinstance(op_node, UnaryOperator):
+                    self._simplify_unary(op_node)
+                else:
+                    self._simplify_binary(op_node)
+
+    def _optimize_constants(
+        self, arr: np.ndarray, constants: list[Constant], target: np.ndarray
+    ) -> float:
+        for const, val in zip(constants, arr):
+            # print(type(const))
+            const.value = val
+
+        return mse(self.compute(), target)
+
+    def optimize_constants(self, target: np.ndarray) -> None:
+        if random.random() <= self.optimize_const_prob:
+            constants = [
+                node for node in self.graph.nodes() if isinstance(node, Constant)
+            ]
+            if not constants:
                 return
 
-            node = random.choice(unary_ops)
-            child = next(nx.neighbors(self.graph, node))
-            if not isinstance(child, Constant):
-                return
-
-            if node is self.root:
-                self.root = Constant(init_value=node.forward(child.value))
-            else:
-                new_const_node = Constant(init_value=node.forward(child.value))
-                parent = next(self.graph.predecessors(node))
-                self.graph.remove_nodes_from([node, child])
-                self.graph.add_edge(parent, new_const_node)
+            minimize(
+                self._optimize_constants,
+                np.array([const.value for const in constants]),
+                args=(constants, target),
+            )
 
     def get_random_subgraph(self) -> nx.DiGraph:
         node = random.choice(list(self.graph.nodes()))

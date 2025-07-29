@@ -28,6 +28,9 @@ class FitnessScore:
         y_hat = tree.compute()
         return mse(y_hat, self.target)
 
+    def __call__(self, tree: ExpressionTree) -> float:
+        return self.get_score(tree)
+
 
 def run(
     data: np.ndarray,
@@ -37,10 +40,12 @@ def run(
     node_mutation_prob: float = 0.5,
     hoist_mutation_prob: float = 0.5,
     tree_simplify_prob: float = 0.5,
+    optimize_const_prob: float = 0.5,
     pop_size: int = 100,
     generations: int = 100,
     return_top: int = 0,
     keep_top: int = 50,
+    kill_bottom: int = 20,
 ) -> ExpressionTree | list[ExpressionTree]:
     """
     Executes the genetic algorithm simulation.
@@ -52,6 +57,8 @@ def run(
             crossover_prob=crossover_prob,
             node_mutation_prob=node_mutation_prob,
             hoist_mutation_prob=hoist_mutation_prob,
+            tree_simplify_prob=tree_simplify_prob,
+            optimize_const_prob=optimize_const_prob,
         )
         for _ in range(pop_size)
     ]
@@ -73,8 +80,10 @@ def run(
         scores = np.array(scores)
 
         if losses:
-            if min(scores) > losses[-1]:
-                assert False, "minimum loss must never increase"
+            assert min(scores) <= losses[-1], (
+                f"minimum loss must never increase; increase of {min(scores) - losses[-1]};"
+                + f" {min(scores)} {losses[-1]}"
+            )
 
         losses.append(scores[0])
 
@@ -89,14 +98,22 @@ def run(
         if best_score == 0.0:
             break
 
-        new_pop = [top_tree]
+        new_pop = list(population[:keep_top])
 
-        for tree in population[1:]:
+        for tree in population[keep_top:-kill_bottom]:
             tree.branch_mutate()
             tree.node_mutate()
             tree.hoist_mutate()
             tree.tree_simplify()
+            tree.optimize_constants(target)
 
+        # for tree in population[1:10]:
+        # prior_score = fitness_score(tree)
+        # opt_score = fitness_score(tree)
+        # diff = opt_score - prior_score
+        # assert opt_score <= prior_score, f"\n{opt_score=}\n{prior_score=}\n{diff=}\n{tree.to_string()}"
+
+        # exit()
         # parent_group_a = population[::2]
         # parent_group_b = population[1::2]
         # for pa, pb in zip(parent_group_a, parent_group_b):
@@ -111,6 +128,7 @@ def run(
                 crossover_prob=crossover_prob,
                 node_mutation_prob=node_mutation_prob,
                 hoist_mutation_prob=hoist_mutation_prob,
+                optimize_const_prob=optimize_const_prob,
             )
             tree.generate()
             new_pop.append(tree)
