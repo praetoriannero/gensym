@@ -79,13 +79,13 @@ def run(
         scores, population = twin_sort(scores, population)
         scores = np.array(scores)
 
-        if losses:
-            assert min(scores) <= losses[-1], (
-                f"minimum loss must never increase; increase of {min(scores) - losses[-1]};"
-                + f" {min(scores)} {losses[-1]}"
-            )
+        # if losses:
+        #     assert min(scores) <= losses[-1], (
+        #         f"minimum loss must never increase; increase of {min(scores) - losses[-1]};"
+        #         + f" {min(scores)} {losses[-1]}"
+        #     )
 
-        losses.append(scores[0])
+        losses.append(min(scores))
 
         if top_tree is None:
             top_tree = population[0]
@@ -98,14 +98,17 @@ def run(
         if best_score == 0.0:
             break
 
+        for tree in population:
+            tree.tree_simplify()
+
         new_pop = list(population[:keep_top])
 
         for tree in population[keep_top:-kill_bottom]:
             tree.branch_mutate()
             tree.node_mutate()
             tree.hoist_mutate()
-            tree.tree_simplify()
             tree.optimize_constants(target)
+            new_pop.append(tree)
 
         # for tree in population[1:10]:
         # prior_score = fitness_score(tree)

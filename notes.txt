@@ -1,4 +1,4 @@
 need to add
-    - per node mutation
     - join two graphs
-    - hoisting
+    - config object for trees
+    - 

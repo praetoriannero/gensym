@@ -310,56 +310,93 @@ class ExpressionTree:
             self.graph = dfs_tree(self.graph, node)
 
     def _simplify_unary(self, node: UnaryOperator) -> None:
-        child = next(nx.neighbors(self.graph, node))
-        if not isinstance(child, Constant):
-            return
+        can_simplify = False
 
-        new_const_node = Constant(init_value=node.forward(child.value))
-        if node is self.root:
-            self.root = new_const_node
-        else:
-            new_const_node = new_const_node
-            parent = next(self.graph.predecessors(node))
-            self.graph.remove_nodes_from([node, child])
-            self.graph.add_edge(parent, new_const_node)
+        try:
+            child = next(nx.neighbors(self.graph, node))
+        except Exception:
+            return can_simplify
+
+        if isinstance(child, UnaryOperator):
+            if node._op == child._op and node._op == "abs":
+                self.graph.add_edge(node, next(nx.neighbors(self.graph, child)))
+                self.graph.remove_node(child)
+
+        if isinstance(child, Constant):
+            new_node = Constant(init_value=node.forward(child.value))
+            can_simplify = True
+            if node is self.root:
+                self.root = new_node
+                self.graph.add_node(self.root)
+                self.graph.remove_nodes_from([node, child])
+            else:
+                parent = next(self.graph.predecessors(node))
+                self.graph.remove_nodes_from([node, child])
+                self.graph.add_edge(parent, new_node)
+
+        if not can_simplify:
+            return can_simplify
+
+        return can_simplify
 
     def _simplify_binary(self, node: BinaryOperator) -> None:
+        can_simplify = False
         children = list(nx.neighbors(self.graph, node))
-        if not all([isinstance(child, Constant) for child in children]):
-            return
+        if not children:
+            return can_simplify
 
         child_a, child_b = children
-        new_const_node = Constant(init_value=node.forward(child_a.value, child_b.value))
+
+        if all([isinstance(child, Constant) for child in children]):
+            new_node = Constant(init_value=node.forward(child_a.value, child_b.value))
+            can_simplify = True
+
+        if all([isinstance(child, Variable) for child in children]):
+            if child_a.col == child_b.col and node._op == "/":
+                new_node = Constant(init_value=1.0)
+                can_simplify = True
+
+        if not can_simplify:
+            return can_simplify
 
         if node is self.root:
-            self.root = new_const_node
+            self.root = new_node
+            self.graph.add_node(self.root)
+            for child in children:
+                self.graph.remove_nodes_from([node, child])
         else:
-            new_const_node = new_const_node
+            new_node = new_node
             parent = next(self.graph.predecessors(node))
             for child in children:
                 self.graph.remove_nodes_from([node, child])
-                self.graph.add_edge(parent, new_const_node)
+                self.graph.add_edge(parent, new_node)
+        
+        return can_simplify
 
     @sort_post
     def tree_simplify(self) -> None:
         if random.random() <= self.tree_simplify_prob and len(self.graph) > 1:
-            operators = [
-                node
-                for node in self.graph.nodes()
-                if isinstance(node, (UnaryOperator, BinaryOperator))
-            ]
-            if operators:
-                op_node = random.choice(operators)
-                if isinstance(op_node, UnaryOperator):
-                    self._simplify_unary(op_node)
-                else:
-                    self._simplify_binary(op_node)
+            reduced = False
+            while not reduced:
+                operators = []
+                for node in self.graph.nodes():
+                    if not isinstance(node, (UnaryOperator, BinaryOperator)):
+                        continue
+
+                    if isinstance(node, UnaryOperator):
+                        operators.append((node, self._simplify_unary))
+                    else:
+                        operators.append((node, self._simplify_binary))
+
+                if len(self.graph) == 1 or not operators:
+                    break
+
+                reduced = all([not func(node) for node, func in operators])
 
     def _optimize_constants(
         self, arr: np.ndarray, constants: list[Constant], target: np.ndarray
     ) -> float:
         for const, val in zip(constants, arr):
-            # print(type(const))
             const.value = val
 
         return mse(self.compute(), target)

@@ -16,6 +16,8 @@ def main():
         "cos(sin(inv(x + 1)))": lambda x: np.cos(np.sin(1 / (x + 1))),
         "x * (x + x)": lambda x: x * (x + x),
         "-1 * (x * x)": lambda x: -1 * (x * x),
+        "-2 + inv(x)": lambda x: -2 + (1 / x),
+        "inv(tan(x))": lambda x: 1 / np.tan(x),
     }
     inputs = np.arange(100) + 1
     _, axs = plt.subplots(len(regression_test), 2)
@@ -28,10 +30,11 @@ def main():
             branch_mutation_prob=0.2,
             node_mutation_prob=0.1,
             hoist_mutation_prob=0.1,
-            tree_simplify_prob=0.2,
+            tree_simplify_prob=1.0,
             optimize_const_prob=0.01,
-            generations=10,
-            keep_top=20,
+            generations=100,
+            keep_top=5,
+            kill_bottom=50,
             pop_size=1000,
         )
         # print(losses)
