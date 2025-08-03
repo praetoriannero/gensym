@@ -21,12 +21,13 @@ def job(tree: ExpressionTree) -> float:
 
 
 class FitnessScore:
-    def __init__(self, target: Any):
+    def __init__(self, target: Any, parsimony: float = 1e-5):
         self.target = target
+        self.parsimony = parsimony
 
     def get_score(self, tree: ExpressionTree) -> float:
         y_hat = tree.compute()
-        return mse(y_hat, self.target) + (len(tree.gr
+        return mse(y_hat, self.target) + (len(tree.graph) * self.parsimony)
 
     def __call__(self, tree: ExpressionTree) -> float:
         return self.get_score(tree)
