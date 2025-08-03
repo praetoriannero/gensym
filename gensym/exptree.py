@@ -61,7 +61,7 @@ def mul(x: Any, y: Any) -> Any:
 
 
 def div(x: Any, y: Any) -> Any:
-    return x / y
+    return x / (y + 1e-12)
 
 
 def exp(x: Any, y: Any) -> Any:
