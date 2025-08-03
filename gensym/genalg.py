@@ -26,7 +26,7 @@ class FitnessScore:
 
     def get_score(self, tree: ExpressionTree) -> float:
         y_hat = tree.compute()
-        return mse(y_hat, self.target) + (len(tree.graph) * 1e-5)
+        return mse(y_hat, self.target) + (len(tree.gr
 
     def __call__(self, tree: ExpressionTree) -> float:
         return self.get_score(tree)
@@ -109,12 +109,6 @@ def run(
             tree.hoist_mutate()
             tree.optimize_constants(target)
             new_pop.append(tree)
-
-        # for tree in population[1:10]:
-        # prior_score = fitness_score(tree)
-        # opt_score = fitness_score(tree)
-        # diff = opt_score - prior_score
-        # assert opt_score <= prior_score, f"\n{opt_score=}\n{prior_score=}\n{diff=}\n{tree.to_string()}"
 
         # exit()
         # parent_group_a = population[::2]
