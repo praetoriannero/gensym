@@ -439,4 +439,3 @@ class ExpressionTree:
             other_parent, other_node, other_subgraph = other.get_random_subgraph()
             self.insert_tree(this_parent, this_node, other_node, other_subgraph)
             other.insert_tree(other_parent, other_node, this_node, this_subgraph)
-

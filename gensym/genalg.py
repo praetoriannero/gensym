@@ -44,7 +44,7 @@ def run(
     optimize_const_prob: float = 0.5,
     pop_size: int = 100,
     generations: int = 100,
-    return_top: int = 0,
+    return_top: int = 1,
     keep_top: int = 50,
     kill_bottom: int = 20,
 ) -> ExpressionTree | list[ExpressionTree]:
