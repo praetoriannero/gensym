@@ -32,7 +32,7 @@ def main():
             hoist_mutation_prob=0.1,
             tree_simplify_prob=1.0,
             optimize_const_prob=0.01,
-            generations=100,
+            generations=10,
             keep_top=5,
             kill_bottom=50,
             pop_size=1000,

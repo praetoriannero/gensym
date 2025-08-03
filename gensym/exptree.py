@@ -370,7 +370,7 @@ class ExpressionTree:
             for child in children:
                 self.graph.remove_nodes_from([node, child])
                 self.graph.add_edge(parent, new_node)
-        
+
         return can_simplify
 
     @sort_post
@@ -439,3 +439,4 @@ class ExpressionTree:
             other_parent, other_node, other_subgraph = other.get_random_subgraph()
             self.insert_tree(this_parent, this_node, other_node, other_subgraph)
             other.insert_tree(other_parent, other_node, this_node, this_subgraph)
+
