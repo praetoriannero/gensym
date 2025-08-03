@@ -27,3 +27,4 @@ def test_unary_operator():
 if __name__ == "__main__":
     test_binary_operator()
     test_unary_operator()
+
