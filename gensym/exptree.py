@@ -5,14 +5,11 @@ from networkx.algorithms.traversal.depth_first_search import dfs_tree
 import numpy as np
 import random
 from scipy.optimize import minimize
+from sklearn.metrics import mean_squared_error
 from typing import Any
 
 
 np.seterr(all="ignore")
-
-
-def mse(x: np.ndarray, y: np.ndarray) -> float:
-    return np.mean(np.square(x.squeeze() - y.squeeze()))
 
 
 class Node(ABC):
@@ -60,7 +57,7 @@ def mul(x: Any, y: Any) -> Any:
     return x * y
 
 
-def div(x: Any, y: Any) -> Any:
+def pdiv(x: Any, y: Any) -> Any:
     return x / (y + 1e-12)
 
 
@@ -78,7 +75,7 @@ class BinaryOperator(Operator):
         "+": add,
         "-": sub,
         "*": mul,
-        "/": div,
+        "/": pdiv,
         # "**": lambda x, y: x ** y,
     }
     child_count = 2
@@ -102,7 +99,12 @@ class BinaryOperator(Operator):
 
 
 def inv(x: Any) -> Any:
-    return 1 / x
+    mask = x == 0
+    return 1 / (x + (mask * 1e-12))
+
+
+def psqrt(x: Any) -> Any:
+    return np.sqrt(np.abs(x))
 
 
 class UnaryOperator(Operator):
@@ -116,7 +118,7 @@ class UnaryOperator(Operator):
         "cos": np.cos,
         "tan": np.tan,
         "inv": inv,
-        # "sqrt": np.sqrt,
+        "sqrt": psqrt,
         "abs": np.abs,
     }
     child_count = 1
@@ -136,18 +138,16 @@ class Variable(Leaf):
 
     child_count = 0
 
-    def __init__(self, data: np.ndarray, column: int | None = None, **kwargs):
-        self.data = data
-        self.col = (
-            column if column is not None else np.random.randint(0, data.shape[-1])
-        )
+    def __init__(self, columns: int, column: int | None = None, **kwargs):
+        self.columns = columns
+        self.col = column if column is not None else np.random.randint(0, columns)
         super().__init__(**kwargs)
 
     def mutate(self) -> None:
-        self.col = np.random.randint(0, self.data.shape[-1])
+        self.col = np.random.randint(0, self.columns)
 
-    def forward(self) -> np.ndarray:
-        return self.data[:, self.col]
+    def forward(self, data: np.ndarray) -> np.ndarray:
+        return data[:, self.col]
 
     def to_string(self, *args, **kwargs) -> str:
         return f"x_{self.col}"
@@ -161,13 +161,11 @@ class Constant(Leaf):
     child_count = 0
 
     def __init__(self, init_value: float | int | None = None, **kwargs):
-        self.value = (
-            (np.random.rand() - 0.5) * 2.0 if init_value is None else init_value
-        )
+        self.value = np.random.uniform(-1, 1) if init_value is None else init_value
         super().__init__(**kwargs)
 
     def mutate(self) -> None:
-        self.value = (np.random.rand() - 0.5) * 2.0
+        self.value = np.random.uniform(-1, 1)
 
     def forward(self) -> float | int:
         return self.value
@@ -183,7 +181,7 @@ class ExpressionTree:
 
     def __init__(
         self,
-        data: np.ndarray,
+        columns: int,
         min_depth: int = 1,
         max_depth: int = 4,
         branch_mutation_prob: float = 0.5,
@@ -192,8 +190,9 @@ class ExpressionTree:
         hoist_mutation_prob: float = 0.5,
         tree_simplify_prob: float = 0.5,
         optimize_const_prob: float = 0.5,
+        fitness_func: Callable = mean_squared_error,
     ):
-        self.data = data
+        self.columns = columns
         self.min_depth = min_depth
         self.max_depth = max_depth
         self.branch_mutation_prob = branch_mutation_prob
@@ -202,6 +201,7 @@ class ExpressionTree:
         self.hoist_mutation_prob = hoist_mutation_prob
         self.tree_simplify_prob = tree_simplify_prob
         self.optimize_const_prob = optimize_const_prob
+        self.fitness_func = fitness_func
 
         self.root: UnaryOperator | BinaryOperator | None = None
         self.graph = nx.DiGraph()
@@ -220,7 +220,8 @@ class ExpressionTree:
 
         depth += 1
         child_nodes = [
-            random.choice(node_types)(data=self.data) for _ in range(node.child_count)
+            random.choice(node_types)(columns=self.columns)
+            for _ in range(node.child_count)
         ]
         for child in child_nodes:
             self.graph.add_edge(node, child)
@@ -233,13 +234,15 @@ class ExpressionTree:
         self._grow(self.root, 0)
         self.sorted_reverse = list(nx.topological_sort(nx.reverse(self.graph)))
 
-    def compute(self) -> float:
+    def compute(self, data: np.ndarray) -> float:
         cache = {}
         reverse_graph = nx.reverse(self.graph)
         self.sorted_reverse = list(nx.topological_sort(nx.reverse(self.graph)))
         for node in self.sorted_reverse:
-            if isinstance(node, (Constant, Variable)):
+            if isinstance(node, Constant):
                 cache[node] = node.forward()
+            elif isinstance(node, Variable):
+                cache[node] = node.forward(data)
             elif isinstance(node, UnaryOperator):
                 parent = next(reverse_graph.predecessors(node))
                 cache[node] = node.forward(cache[parent])
@@ -249,7 +252,7 @@ class ExpressionTree:
 
         result = cache[self.root]
         if not isinstance(result, np.ndarray):
-            result = np.array([result] * len(self.data))
+            result = np.array([result] * self.columns)
 
         return result.squeeze()
 
@@ -281,7 +284,7 @@ class ExpressionTree:
             parent_node = next(self.graph.predecessors(node))
             self._prune_branch(node)
 
-            new_node = random.choice(self.node_types)(data=self.data)
+            new_node = random.choice(self.node_types)(columns=self.columns)
             self.graph.add_edge(parent_node, new_node)
             self._grow(
                 new_node,
@@ -292,7 +295,7 @@ class ExpressionTree:
     def node_mutate(self) -> None:
         if random.random() <= self.node_mutation_prob:
             node = random.choice(list(self.graph.nodes()))
-            new_node = type(node)(data=self.data)
+            new_node = type(node)(columns=self.columns)
             self.graph.add_node(new_node)
 
             for parent in self.graph.predecessors(node):
@@ -399,7 +402,12 @@ class ExpressionTree:
         for const, val in zip(constants, arr):
             const.value = val
 
-        return mse(self.compute(), target)
+        try:
+            result = self.fitness_func(self.compute(), target)
+        except:
+            result = np.inf
+
+        return result
 
     def optimize_constants(self, target: np.ndarray) -> None:
         if random.random() <= self.optimize_const_prob:

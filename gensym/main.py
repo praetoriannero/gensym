@@ -19,12 +19,13 @@ def main():
         "-2 + inv(x)": lambda x: -2 + (1 / x),
         "inv(tan(x))": lambda x: 1 / np.tan(x),
     }
-    inputs = np.arange(100) + 1
+    data = (np.arange(100) + 1).reshape(-1, 1)
+
     _, axs = plt.subplots(len(regression_test), 2)
     for idx, (exp, func) in enumerate(regression_test.items()):
-        target = func(inputs)
+        target = func(data)
         tree, losses = run(
-            inputs.reshape(-1, 1),
+            data.reshape(-1, 1),
             target,
             crossover_prob=0.5,
             branch_mutation_prob=0.2,
@@ -37,11 +38,10 @@ def main():
             kill_bottom=30,
             pop_size=1000,
         )
-        # print(losses)
-        y_hat = tree.compute()
-        # print("best", tree.to_string())
-        axs[idx][0].plot(inputs, target, label=exp)
-        axs[idx][0].plot(inputs, y_hat, label="Best Fit", c="red")
+
+        y_hat = tree.compute(data)
+        axs[idx][0].plot(data, target, label=exp)
+        axs[idx][0].plot(data, y_hat, label="Best Fit", c="red")
         axs[idx][1].plot(losses, label="Loss")
         axs[idx][0].legend()
         axs[idx][1].legend()

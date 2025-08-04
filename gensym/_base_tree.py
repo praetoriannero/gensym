@@ -1,7 +1,9 @@
 from __future__ import annotations
 from abc import ABC
+from typing import Callable
 
 import numpy as np
+from sklearn.metrics import mean_squared_error
 
 
 class BaseTree(ABC):
@@ -15,6 +17,9 @@ class BaseTree(ABC):
         hoist_mutation_prob: float = 0.5,
         tree_simplify_prob: float = 0.5,
         optimize_const_prob: float = 0.5,
+        keep_top: float = 0.1,
+        kill_bot: float = 0.1,
+        fitness_func: Callable = mean_squared_error,
     ):
         self.min_depth = min_depth
         self.max_depth = max_depth

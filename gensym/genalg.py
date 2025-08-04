@@ -16,8 +16,8 @@ def mse(x: np.ndarray, y: np.ndarray) -> float:
     return np.mean(np.square(x.squeeze() - y.squeeze()))
 
 
-def job(tree: ExpressionTree) -> float:
-    return tree.compute()
+def job(tree: ExpressionTree, data: np.ndarray) -> float:
+    return tree.compute(data)
 
 
 class FitnessScore:
@@ -25,12 +25,12 @@ class FitnessScore:
         self.target = target
         self.parsimony = parsimony
 
-    def get_score(self, tree: ExpressionTree) -> float:
-        y_hat = tree.compute()
+    def get_score(self, tree: ExpressionTree, data: np.ndarray) -> float:
+        y_hat = tree.compute(data)
         return mse(y_hat, self.target) + (len(tree.graph) * self.parsimony)
 
-    def __call__(self, tree: ExpressionTree) -> float:
-        return self.get_score(tree)
+    def __call__(self, tree: ExpressionTree, data: np.ndarray) -> float:
+        return self.get_score(tree, data)
 
 
 def run(
@@ -51,18 +51,16 @@ def run(
     """
     Executes the genetic algorithm simulation.
     """
-    population = [
-        ExpressionTree(
-            data=data,
-            branch_mutation_prob=branch_mutation_prob,
-            crossover_prob=crossover_prob,
-            node_mutation_prob=node_mutation_prob,
-            hoist_mutation_prob=hoist_mutation_prob,
-            tree_simplify_prob=tree_simplify_prob,
-            optimize_const_prob=optimize_const_prob,
-        )
-        for _ in range(pop_size)
-    ]
+    tree_kwargs = {
+        "columns": data.shape[-1],
+        "branch_mutation_prob": branch_mutation_prob,
+        "crossover_prob": crossover_prob,
+        "node_mutation_prob": node_mutation_prob,
+        "hoist_mutation_prob": hoist_mutation_prob,
+        "tree_simplify_prob": tree_simplify_prob,
+        "optimize_const_prob": optimize_const_prob,
+    }
+    population = [ExpressionTree(**tree_kwargs) for _ in range(pop_size)]
 
     for tree in population:
         tree.generate()
@@ -73,8 +71,9 @@ def run(
     fitness_score = FitnessScore(target)
     for _ in tqdm(range(generations), disable=False):
         scores = None
+        job_args = [(tree, data) for tree in population]
         with mp.Pool(processes=mp.cpu_count() - 1) as pool:
-            scores = pool.map(fitness_score.get_score, population)
+            scores = pool.starmap(fitness_score.get_score, job_args)
 
         scores = [score if not np.isnan(score) else float("inf") for score in scores]
         scores, population = twin_sort(scores, population)
@@ -120,14 +119,7 @@ def run(
         #     new_pop.append(pb)
 
         while len(new_pop) < pop_size:
-            tree = ExpressionTree(
-                data=data,
-                branch_mutation_prob=branch_mutation_prob,
-                crossover_prob=crossover_prob,
-                node_mutation_prob=node_mutation_prob,
-                hoist_mutation_prob=hoist_mutation_prob,
-                optimize_const_prob=optimize_const_prob,
-            )
+            tree = ExpressionTree(**tree_kwargs)
             tree.generate()
             new_pop.append(tree)
 
