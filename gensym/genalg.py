@@ -46,7 +46,7 @@ def run(
     generations: int = 100,
     return_top: int = 1,
     keep_top: int = 50,
-    kill_bottom: int = 20,
+    prune_bottom: int = 20,
 ) -> ExpressionTree | list[ExpressionTree]:
     """
     Executes the genetic algorithm simulation.
@@ -103,7 +103,7 @@ def run(
 
         new_pop = list(population[:keep_top])
 
-        for tree in population[keep_top:-kill_bottom]:
+        for tree in population[keep_top:-prune_bottom]:
             tree.branch_mutate()
             tree.node_mutate()
             tree.hoist_mutate()

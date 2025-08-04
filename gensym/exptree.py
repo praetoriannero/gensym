@@ -254,6 +254,9 @@ class ExpressionTree:
         if not isinstance(result, np.ndarray):
             result = np.array([result] * self.columns)
 
+        if result.shape[-1] != data.shape[0]:
+            result = np.repeat(result[0], data.shape[0]).reshape(-1, 1)
+
         return result.squeeze()
 
     def to_string(self) -> str:

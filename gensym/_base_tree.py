@@ -4,6 +4,7 @@ from typing import Callable
 
 import numpy as np
 from sklearn.metrics import mean_squared_error
+from sklearn.exceptions import NotFittedError
 
 from gensym.genalg import run
 
@@ -19,8 +20,8 @@ class BaseTree(ABC):
         hoist_mutation_prob: float = 0.5,
         tree_simplify_prob: float = 0.5,
         optimize_const_prob: float = 0.5,
-        keep_top: float = 0.1,
-        prune_bottom: float = 0.1,
+        keep_top: int = 1,
+        prune_bottom: int = 20,
         fitness_func: Callable = mean_squared_error,
         population_size: int = 100,
         generations: int = 10,
@@ -42,9 +43,10 @@ class BaseTree(ABC):
         self._verbose = verbose
 
         self._losses = []
+        self._tree = None
 
     def fit(self, inputs: np.ndarray, target: np.ndarray) -> BaseTree:
-        tree, losses = run(
+        self._tree, self._losses = run(
             data=inputs,
             target=target,
             crossover_prob=self._crossover_prob,
@@ -54,14 +56,23 @@ class BaseTree(ABC):
             tree_simplify_prob=self._tree_simplify_prob,
             optimize_const_prob=self._optimize_const_prob,
             pop_size=self._population_size,
-            generations=self._generations,
             keep_top=self._keep_top,
             prune_bottom=self._prune_bottom,
             generations=self._generations,
         )
 
+    @property
+    def losses(self) -> list[float]:
+        return self._losses.copy()
+
     def predict(self, inputs: np.ndarray) -> np.ndarray:
-        raise NotImplementedError
+        if self._tree is None:
+            raise NotFittedError
+
+        return self._tree.compute(inputs)
 
     def fit_predict(self, inputs: np.ndarray, target: np.ndarray) -> np.ndarray:
-        raise NotImplementedError
+        return self.fit(inputs, target)
+
+    def to_string(self) -> str:
+        return self._tree.to_string()
