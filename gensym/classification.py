@@ -4,8 +4,6 @@ import numpy as np
 
 
 class Classifier(BaseTree):
-    def __init__(self):
-        pass
 
     def fit(self, inputs: np.ndarray, target: np.ndarray) -> Classifier:
         pass
